@@ -1,67 +1,188 @@
-# Next.js Turso Starter
+# AI QA Lounge
 
-This repository is a starter template for building a Next.js application with Turso and Drizzle ORM.
+GAISメルマガ購読者向けの動画コンテンツ質問コミュニティプラットフォーム
 
-<img width="1200" alt="Next.js Starter" src="https://github.com/user-attachments/assets/b78fd54e-574b-43b9-8f8f-943d14722e64" />
+## プロジェクト概要
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?demo-description=Simple%20Next.js%20starter%20for%20using%20SQLite%20over%20HTTP%20with%20Turso.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F2bMt29jx0XHekOO2lYlj6R%2Fc902d38ad15abf0c6d52f05bf60d54c5%2Fzi0I1GXrZoKub1NCL6i3VKe8a2UE5HMITQn1WCyquvoSZxwk&demo-title=Next.js%20Turso%20Starter&demo-url=https%3A%2F%2Fnextjs-turso-starter.vercel.app&from=templates&products=%255B%257B%2522type%2522%253A%2522integration%2522%252C%2522protocol%2522%253A%2522storage%2522%252C%2522productSlug%2522%253A%2522database%2522%252C%2522integrationSlug%2522%253A%2522tursocloud%2522%257D%255D&project-name=Next.js%20Turso%20Starter&repository-name=turso-starter&repository-url=https%3A%2F%2Fgithub.com%2Ftursodatabase%2Fnextjs-turso-starter&skippable-integrations=1)
+YouTube動画を視聴したメルマガ購読者が質問を投稿し、RAG（Retrieval-Augmented Generation）で動画字幕から関連情報を検索してAIが回答を生成するQ&Aプラットフォームです。
 
-## Stack
+### 主な機能
 
-- Next.js 15
-- App Router
-- Server Actions
-- Drizzle ORM
-- Turso Database
-- Todo CRUD
-- TypeScript
-- Tailwind CSS
+- エピソード管理（YouTube動画登録・字幕取得・ベクトル化）
+- パーソナライズURL生成（メール配信用）
+- ユーザーQ&A（質問投稿・RAG回答生成）
+- コミュニティ機能（他のユーザーの質問閲覧）
 
-## Local Development
+## 技術スタック
 
-1. Clone this repository
-2. Install dependencies:
+- **Frontend**: Next.js 15 (App Router) + TypeScript + Tailwind CSS
+- **Backend**: Next.js Server Actions / API Routes
+- **Database**: Turso (libSQL) + Drizzle ORM（リレーショナル + ベクトル統合）
+- **AI/RAG**: Vercel AI SDK + OpenAI
+- **Vector Search**: Turso libSQL vector (F32_BLOB)
+- **認証**: シンプル認証（user_idベース）
+- **デプロイ**: Vercel + Turso Cloud
 
-   ```bash
-   npm install
-   ```
+## アーキテクチャ
 
-3. Set up your environment variables:
+### シングルDB アーキテクチャ（Turso libSQL vector）
 
-   ```bash
-   cp .env.example .env
-   ```
+Turso libSQL 単体でリレーショナルデータとベクトルデータを管理：
 
-   Fill in your Turso database credentials:
+- **リレーショナルデータ**: episodes, users, questions, answers, user_profiles
+- **ベクトルデータ**: video_captions.embedding (F32_BLOB(1536))
 
-   ```
-   TURSO_DATABASE_URL=your_turso_database_url
-   TURSO_AUTH_TOKEN=your_turso_auth_token
-   ```
+メリット：
+- ✅ DB 1つだけで完結（Redis 不要、Docker 不要）
+- ✅ コスト $0（Turso 無料プランのみ）
+- ✅ 型安全性（Drizzle の TypeScript ファースト ORM）
+- ✅ Edge対応（Vercel Edge Functions で直接利用可能）
 
-4. Set up your database:
+## ローカル開発
 
-   ```bash
-   npm run db:generate
-   npm run db:push
-   ```
+### 1. 依存関係のインストール
 
-5. Start the development server:
-   ```bash
-   npm run dev
-   ```
+```bash
+npm install
+```
 
-## Database Management
+### 2. 環境変数の設定
 
-This project uses Drizzle ORM for database operations. Here are the available commands:
+`.env.local`ファイルを作成：
 
-- `npm run db:generate` - Generate migration files from schema changes
-- `npm run db:push` - Push schema changes directly to the database (use with caution)
-- `npm run db:migrate` - Run migrations against the database
-- `npm run db:studio` - Open the Drizzle Studio for database management
+```bash
+# Turso Database (ローカル開発用)
+TURSO_DATABASE_URL=file:local.db
 
-## Need Help?
+# OpenAI
+OPENAI_API_KEY=your_openai_api_key
 
-1. Open an issue on GitHub
-2. Submit a Pull Request to improve this starter
-3. [Join us on Discord](https://tur.so/discord)
+# App
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Admin認証
+ADMIN_PASSWORD=your_secure_admin_password
+```
+
+### 3. データベースのセットアップ
+
+```bash
+# スキーマを直接DBにプッシュ（開発時）
+npm run db:push
+
+# または、マイグレーションを生成して実行
+npm run db:generate
+npm run db:migrate
+```
+
+### 4. 開発サーバーの起動
+
+```bash
+npm run dev
+```
+
+http://localhost:3000 にアクセス
+
+## データベース管理
+
+Drizzle ORMを使用したデータベース操作：
+
+- `npm run db:generate` - スキーマ変更からマイグレーションファイルを生成
+- `npm run db:push` - スキーマ変更を直接DBにプッシュ（開発用）
+- `npm run db:migrate` - マイグレーションを実行
+- `npm run db:studio` - Drizzle Studioを開いてDBを管理
+
+## 本番環境セットアップ（Turso Cloud）
+
+### 1. Turso CLIのインストール
+
+```bash
+brew install tursodatabase/tap/turso
+```
+
+### 2. Tursoにログイン
+
+```bash
+turso auth login
+```
+
+### 3. データベースの作成
+
+```bash
+turso db create ai-qa-lounge-prod
+```
+
+### 4. 認証情報の取得
+
+```bash
+# データベースURL
+turso db show ai-qa-lounge-prod --url
+
+# 認証トークン
+turso db tokens create ai-qa-lounge-prod
+```
+
+### 5. Vercelに環境変数を設定
+
+```bash
+vercel env add TURSO_DATABASE_URL
+vercel env add TURSO_AUTH_TOKEN
+vercel env add OPENAI_API_KEY
+```
+
+## プロジェクト構造
+
+```
+ai-qa-lounge/
+├── app/                    # Next.js App Router
+│   ├── api/               # API Routes
+│   ├── admin/             # 管理画面
+│   ├── room/              # ユーザーQ&Aルーム
+│   └── page.tsx           # トップページ
+├── db/                    # データベース
+│   ├── schema.ts          # Drizzle スキーマ定義
+│   └── index.ts           # DBクライアント
+├── lib/                   # ユーティリティ
+│   ├── youtube/           # YouTube字幕取得
+│   └── rag/               # RAG検索・回答生成
+├── migrations/            # マイグレーションファイル
+└── drizzle.config.ts      # Drizzle設定
+```
+
+## 開発フェーズ
+
+### Phase 1: プロジェクトセットアップ ✅ 完了
+
+- [x] Next.js + Turso + Drizzle プロジェクト作成
+- [x] ベクトル対応スキーマ定義
+- [x] AI/RAGパッケージインストール
+- [x] データベーステーブル作成
+
+### Phase 2: YouTube RAGパイプライン（次のステップ）
+
+- [ ] YouTube字幕取得機能
+- [ ] ベクトル化パイプライン
+- [ ] 管理画面API（エピソード登録）
+
+### Phase 3: ユーザーQ&A機能
+
+- [ ] RAG検索機能
+- [ ] 回答生成機能
+- [ ] Q&A UI実装
+
+### Phase 4: 管理画面 & デプロイ
+
+- [ ] 管理画面UI
+- [ ] パーソナライズURL生成
+- [ ] 本番デプロイ
+
+## 参考リソース
+
+- [Turso公式ドキュメント](https://docs.turso.tech/)
+- [Drizzle ORM公式ドキュメント](https://orm.drizzle.team/)
+- [Turso Vector Embeddings Guide](https://docs.turso.tech/features/ai-and-embeddings)
+- [Vercel AI SDK](https://sdk.vercel.ai/)
+
+## ライセンス
+
+MIT
