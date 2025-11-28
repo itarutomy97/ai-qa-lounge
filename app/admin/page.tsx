@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 type Episode = {
   id: number;
@@ -82,8 +83,9 @@ export default function AdminPage() {
       setStatusMessage(`✅ 動画を登録しました: ${data.episode.title}`);
       setNewVideoUrl('');
       await fetchEpisodes();
-    } catch (error: any) {
-      setStatusMessage(`❌ エラー: ${error.message}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setStatusMessage(`❌ エラー: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -97,7 +99,7 @@ export default function AdminPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-[#d2d2d7] p-8">
             <div className="text-center mb-8">
               <h1 className="text-2xl font-semibold text-[#1d1d1f] mb-2">管理者モード</h1>
-              <p className="text-sm text-[#86868b]">AI QA Lounge</p>
+              <p className="text-sm text-[#86868b]">GAIS QA Lounge</p>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -220,9 +222,11 @@ export default function AdminPage() {
                   className="bg-white rounded-2xl shadow-sm border border-[#d2d2d7] p-6"
                 >
                   <div className="flex items-start gap-4">
-                    <img
+                    <Image
                       src={`https://img.youtube.com/vi/${episode.youtubeVideoId}/mqdefault.jpg`}
                       alt={episode.title}
+                      width={160}
+                      height={96}
                       className="w-40 h-24 object-cover rounded-lg flex-shrink-0"
                     />
                     <div className="flex-1 min-w-0">

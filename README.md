@@ -1,4 +1,4 @@
-# AI QA Lounge
+# GAIS QA Lounge
 
 GAISメルマガ購読者向けの動画コンテンツ質問コミュニティプラットフォーム
 

@@ -20,11 +20,18 @@ export async function fetchYouTubeTranscript(
       throw new Error('No transcript available for this video');
     }
 
-    return segments.map((segment: any) => ({
-      start: segment.start_ms / 1000, // ミリ秒から秒に変換
-      duration: (segment.end_ms - segment.start_ms) / 1000,
-      text: segment.snippet?.text || '',
-    }));
+    return segments.map((segment) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const seg = segment as any;
+      const startMs = typeof seg.start_ms === 'string' ? parseFloat(seg.start_ms) : seg.start_ms;
+      const endMs = typeof seg.end_ms === 'string' ? parseFloat(seg.end_ms) : seg.end_ms;
+
+      return {
+        start: startMs / 1000, // ミリ秒から秒に変換
+        duration: (endMs - startMs) / 1000,
+        text: seg.snippet?.text || '',
+      };
+    });
   } catch (error) {
     console.error(`Failed to fetch transcript for ${videoId}:`, error);
     throw new Error(`Transcript fetch failed: ${error}`);

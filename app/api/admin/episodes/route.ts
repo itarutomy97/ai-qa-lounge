@@ -73,16 +73,17 @@ export async function POST(req: NextRequest) {
       },
       vectorize: vectorizeResult,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating episode:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message },
+      { error: errorMessage },
       { status: 500 }
     );
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const allEpisodes = await db
       .select()
@@ -90,10 +91,11 @@ export async function GET(req: NextRequest) {
       .orderBy(desc(episodes.createdAt));
 
     return NextResponse.json({ episodes: allEpisodes });
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error fetching episodes:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message },
+      { error: errorMessage },
       { status: 500 }
     );
   }

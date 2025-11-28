@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { fetchYouTubeTranscript, formatTimestamp, parseVideoId } from '../transcript';
 
 describe('YouTube Transcript', () => {

@@ -2,15 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCompletion } from '@ai-sdk/react';
+import { useQAStore } from '@/lib/store/qa-store';
 
 type Episode = {
   id: number;
   youtubeVideoId: string;
   title: string;
   description: string | null;
-  date: string;
-  createdAt: Date | null;
+  date: string | null;
+  createdAt: string | null;
 };
 
 export function QuestionForm({ episodes }: { episodes: Episode[] }) {
@@ -20,34 +20,49 @@ export function QuestionForm({ episodes }: { episodes: Episode[] }) {
   );
   const [questionText, setQuestionText] = useState('');
   const [selectedModel, setSelectedModel] = useState('gpt-5-mini');
-  const [sources] = useState<Array<{ startTime: number; text: string; similarity?: number }>>([]);
-
-  const { completion, complete, isLoading } = useCompletion({
-    api: '/api/questions',
-    body: {
-      episodeId: selectedEpisode,
-      userId: 'anonymous',
-      model: selectedModel,
-    },
-    onFinish: () => {
-      setQuestionText('');
-      // 少し遅延させてから質問リストを更新
-      setTimeout(() => {
-        router.refresh();
-      }, 1000);
-    },
-    onError: (error: Error) => {
-      console.error('Error:', error);
-      alert('質問の送信に失敗しました。もう一度お試しください。');
-    },
-  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { setCurrentQuestion } = useQAStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!questionText.trim() || !selectedEpisode || isLoading) return;
+    if (!questionText.trim() || !selectedEpisode || isSubmitting) return;
 
-    // 質問を送信してストリーミング開始
-    await complete(questionText.trim());
+    setIsSubmitting(true);
+
+    try {
+      // まず質問を登録してIDを取得
+      const response = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episodeId: selectedEpisode,
+          userId: 'anonymous',
+          questionText: questionText.trim(),
+          model: selectedModel,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit question');
+      }
+
+      const questionId = response.headers.get('X-Question-Id');
+      if (questionId) {
+        // Zustandストアに質問情報を保存
+        setCurrentQuestion({
+          questionId,
+          episodeId: selectedEpisode,
+          questionText: questionText.trim(),
+        });
+        // 即座にビデオページへ遷移
+        router.push(`/video/${selectedEpisode}?questionId=${questionId}`);
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('質問の送信に失敗しました。もう一度お試しください。');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (episodes.length === 0) {
@@ -92,7 +107,7 @@ export function QuestionForm({ episodes }: { episodes: Episode[] }) {
             value={selectedModel}
             onChange={(e) => setSelectedModel(e.target.value)}
             className="w-full px-4 py-3 bg-[#f5f5f7] border border-[#d2d2d7] rounded-xl text-[#1d1d1f] focus:outline-none focus:ring-2 focus:ring-[#0066cc] focus:border-transparent transition-all"
-            disabled={isLoading}
+            disabled={isSubmitting}
           >
             <optgroup label="GPT-5シリーズ（最新）">
               <option value="gpt-5">GPT-5（最高性能・コーディング特化）</option>
@@ -128,52 +143,19 @@ export function QuestionForm({ episodes }: { episodes: Episode[] }) {
             placeholder="例: この動画の主要なメッセージは何ですか？"
             rows={4}
             className="w-full px-4 py-3 bg-[#f5f5f7] border border-[#d2d2d7] rounded-xl text-[#1d1d1f] placeholder-[#86868b] focus:outline-none focus:ring-2 focus:ring-[#0066cc] focus:border-transparent transition-all resize-none"
-            disabled={isLoading}
+            disabled={isSubmitting}
           />
         </div>
 
         {/* 送信ボタン */}
         <button
           type="submit"
-          disabled={!questionText.trim() || isLoading}
+          disabled={!questionText.trim() || isSubmitting}
           className="w-full px-6 py-3 bg-[#0066cc] hover:bg-[#0077ed] disabled:bg-[#d2d2d7] disabled:text-[#86868b] text-white font-medium rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-[#0066cc] focus:ring-offset-2"
         >
-          {isLoading ? '回答を生成中...' : '質問を送信'}
+          {isSubmitting ? '質問を送信中...' : '質問を送信'}
         </button>
       </form>
-
-      {/* 回答表示エリア - Depth原則: モーション付き表示 + ストリーミング */}
-      {(completion || isLoading) && (
-        <div className="mt-6 p-6 bg-[#f5f5f7] rounded-xl animate-fade-in">
-          <h3 className="text-lg font-semibold text-[#1d1d1f] mb-3">
-            AI回答 {isLoading && <span className="text-sm text-[#86868b]">（生成中...）</span>}
-          </h3>
-          <p className="text-[#1d1d1f] mb-4 leading-relaxed whitespace-pre-wrap">
-            {completion}
-            {isLoading && <span className="inline-block w-2 h-4 ml-1 bg-[#0066cc] animate-pulse" />}
-          </p>
-
-          {sources && sources.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-[#d2d2d7]">
-              <h4 className="text-sm font-medium text-[#86868b] mb-2">参照箇所</h4>
-              <div className="space-y-2">
-                {sources.map((source, idx) => {
-                  const minutes = Math.floor(source.startTime / 60);
-                  const seconds = Math.floor(source.startTime % 60);
-                  const timestamp = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-                  return (
-                    <div key={idx} className="text-sm">
-                      <span className="font-medium text-[#0066cc]">{timestamp}</span>
-                      <span className="text-[#86868b] ml-2">{source.text.substring(0, 100)}...</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

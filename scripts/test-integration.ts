@@ -1,11 +1,8 @@
 /**
  * Phase 1〜3の統合テストスクリプト
  *
- * 実行: npx tsx scripts/test-integration.ts
+ * 実行: npm run test:integration
  */
-
-// 環境変数の読み込み（他の何よりも先に実行）
-require('dotenv').config({ path: require('path').resolve(__dirname, '../.env.local') });
 
 import { db } from '../db';
 import { episodes, videoCaptions, users, questions, answers } from '../db/schema';
@@ -183,7 +180,7 @@ async function cleanup() {
 
 async function main() {
   console.log('═══════════════════════════════════════════════════════════');
-  console.log('   AI QA Lounge - Phase 1〜3 統合テスト');
+  console.log('   GAIS QA Lounge - Phase 1〜3 統合テスト');
   console.log('═══════════════════════════════════════════════════════════');
 
   try {

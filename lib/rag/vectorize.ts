@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { videoCaptions, episodes } from '@/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { embedMany } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { TranscriptSegment } from '../youtube/transcript';
