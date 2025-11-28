@@ -128,3 +128,10 @@ export const videoCaptionsRelations = relations(videoCaptions, ({ one }) => ({
     references: [episodes.id],
   }),
 }));
+
+export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [userProfiles.userId],
+    references: [users.id],
+  }),
+}));
