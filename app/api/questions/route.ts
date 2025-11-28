@@ -1,15 +1,45 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/db';
-import { questions, answers, userProfiles } from '@/db/schema';
+import { questions, answers, userProfiles, users } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { searchSimilarCaptions } from '@/lib/rag/search';
-import { generateAnswer } from '@/lib/rag/generate';
+import { openai } from '@ai-sdk/openai';
+import { streamText } from 'ai';
 
 export async function POST(req: NextRequest) {
   try {
-    const { episodeId, userId, questionText } = await req.json();
+    const body = await req.json();
+    const { episodeId, userId: inputUserId, prompt, model } = body;
+    const questionText = prompt; // useCompletionは`prompt`という名前で送信する
+    const selectedModel = model || 'gpt-5-mini'; // デフォルトはgpt-5-mini
 
-    // Step 1: 質問を保存
+    // Step 1: ユーザーの存在確認と作成
+    let userId = inputUserId;
+
+    if (userId === 'anonymous') {
+      // 匿名ユーザーが存在するか確認
+      const [existingUser] = await db
+        .select()
+        .from(users)
+        .where(eq(users.userId, 'anonymous'))
+        .limit(1);
+
+      if (!existingUser) {
+        // 匿名ユーザーを作成
+        const [newUser] = await db
+          .insert(users)
+          .values({
+            userId: 'anonymous',
+            email: 'anonymous@ai-qa-lounge.local',
+          })
+          .returning();
+        userId = newUser.id;
+      } else {
+        userId = existingUser.id;
+      }
+    }
+
+    // Step 2: 質問を保存
     const [question] = await db
       .insert(questions)
       .values({
@@ -20,69 +50,97 @@ export async function POST(req: NextRequest) {
       .returning();
 
     if (!question) {
-      return NextResponse.json(
-        { error: 'Failed to create question' },
-        { status: 400 }
-      );
+      return new Response(JSON.stringify({ error: 'Failed to create question' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
-    // Step 2: RAG検索
-    const searchResults = await searchSimilarCaptions(
-      episodeId,
-      questionText,
-      5
-    );
+    // Step 3: RAG検索
+    const searchResults = await searchSimilarCaptions(episodeId, questionText, 5);
 
-    // Step 3: ユーザープロファイル取得
+    // Step 4: ユーザープロファイル取得
     const [profile] = await db
       .select()
       .from(userProfiles)
       .where(eq(userProfiles.userId, userId))
       .limit(1);
 
-    // Step 4: 回答生成
-    const { answer, sources } = await generateAnswer(
-      questionText,
-      searchResults,
-      profile ? {
-        organizationType: profile.organizationType || undefined,
-        jobRole: profile.jobRole || undefined,
-      } : undefined
-    );
-
-    // Step 5: 回答を保存
-    const [answerData] = await db
-      .insert(answers)
-      .values({
-        questionId: question.id,
-        answerText: answer,
-        sources: JSON.stringify(sources.map((s) => ({
-          caption_id: s.id,
-          start_time: s.startTime,
-          text: s.text,
-          similarity: s.similarity,
-        }))),
-        modelUsed: 'gpt-4o-mini',
+    // コンテキストを構築
+    const context = searchResults
+      .map((result, idx) => {
+        const minutes = Math.floor(result.startTime / 60);
+        const seconds = Math.floor(result.startTime % 60);
+        const timestamp = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        return `[${idx + 1}] (${timestamp}) ${result.text}`;
       })
-      .returning();
+      .join('\n\n');
 
-    if (!answerData) {
-      return NextResponse.json(
-        { error: 'Failed to save answer' },
-        { status: 400 }
-      );
+    // システムプロンプト
+    let systemPrompt = `あなたはYouTube動画の内容に基づいて質問に回答するAIアシスタントです。
+
+以下のコンテキスト（動画の字幕からの抜粋）を参照して、ユーザーの質問に日本語で丁寧に回答してください。
+
+# 回答のガイドライン
+- コンテキストに基づいて、具体的で詳細な回答を提供してください
+- 重要なポイントを3-5文程度でまとめてください
+- 可能な限り、参照箇所のタイムスタンプ [番号] を文中に含めてください（例: 「〜について説明しています [1] (2:22)」）
+- コンテキストに情報がない場合は、その旨を正直に伝えてください`;
+
+    if (profile?.organizationType || profile?.jobRole) {
+      systemPrompt += `\n\n# ユーザー情報\n組織: ${profile.organizationType || '不明'}\n役職: ${profile.jobRole || '不明'}`;
     }
 
-    return NextResponse.json({
-      question,
-      answer: answerData.answerText,
-      sources,
+    systemPrompt += `\n\n# コンテキスト（動画字幕）\n${context}`;
+
+    // Step 5: ストリーミング回答生成
+    const result = await streamText({
+      model: openai(selectedModel),
+      system: systemPrompt,
+      prompt: `質問: ${questionText}`,
+      temperature: 0.7,
+      onFinish: async ({ text }) => {
+        // ストリーミング完了後にDBに保存
+        try {
+          await db.insert(answers).values({
+            questionId: question.id,
+            answerText: text,
+            sources: JSON.stringify(
+              searchResults.map((s) => ({
+                caption_id: s.id,
+                start_time: s.startTime,
+                text: s.text,
+                similarity: s.similarity,
+              }))
+            ),
+            modelUsed: selectedModel,
+          });
+        } catch (error) {
+          console.error('Error saving answer:', error);
+        }
+      },
+    });
+
+    // ソース情報をヘッダーに含める
+    const sourcesHeader = JSON.stringify(
+      searchResults.map((s) => ({
+        startTime: s.startTime,
+        text: s.text,
+        similarity: s.similarity,
+      }))
+    );
+
+    return result.toTextStreamResponse({
+      headers: {
+        'X-Question-Id': question.id.toString(),
+        'X-Sources': encodeURIComponent(sourcesHeader),
+      },
     });
   } catch (error: any) {
     console.error('Error processing question:', error);
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }

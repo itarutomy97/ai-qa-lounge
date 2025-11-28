@@ -2,23 +2,46 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { episodes } from '@/db/schema';
 import { desc } from 'drizzle-orm';
-import { fetchYouTubeTranscript } from '@/lib/youtube/transcript';
+import { fetchYouTubeTranscript, parseVideoId } from '@/lib/youtube/transcript';
 import { vectorizeEpisode } from '@/lib/rag/vectorize';
+import { Innertube } from 'youtubei.js';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { youtubeVideoId, newsletterId, title, description, date } = body;
+    const { videoUrl } = body;
 
-    // Step 1: エピソード登録
+    if (!videoUrl) {
+      return NextResponse.json(
+        { error: 'videoUrl is required' },
+        { status: 400 }
+      );
+    }
+
+    // Step 1: YouTube URLからビデオIDを抽出
+    const videoId = parseVideoId(videoUrl);
+    if (!videoId) {
+      return NextResponse.json(
+        { error: 'Invalid YouTube URL' },
+        { status: 400 }
+      );
+    }
+
+    // Step 2: YouTube APIから動画情報を取得
+    const youtube = await Innertube.create();
+    const videoInfo = await youtube.getInfo(videoId);
+
+    const title = videoInfo.basic_info.title || 'Untitled Video';
+    const description = videoInfo.basic_info.short_description || '';
+
+    // Step 3: エピソード登録
     const [episode] = await db
       .insert(episodes)
       .values({
-        youtubeVideoId,
-        newsletterId,
+        youtubeVideoId: videoId,
         title,
         description,
-        date,
+        date: new Date().toISOString(),
       })
       .returning();
 
@@ -29,10 +52,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: YouTube字幕取得
-    const transcript = await fetchYouTubeTranscript(youtubeVideoId);
+    // Step 4: YouTube字幕取得
+    const transcript = await fetchYouTubeTranscript(videoId);
 
-    // Step 3: ベクトル化（バックグラウンド処理）
+    if (!transcript || transcript.length === 0) {
+      return NextResponse.json(
+        { error: 'Failed to fetch transcript. Video may not have captions available.' },
+        { status: 400 }
+      );
+    }
+
+    // Step 5: ベクトル化（バックグラウンド処理）
     // 本番ではQueueを使うべきだが、MVPでは同期処理
     const vectorizeResult = await vectorizeEpisode(episode.id, transcript);
 
