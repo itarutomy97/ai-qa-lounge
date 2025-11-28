@@ -1,4 +1,4 @@
-import { YoutubeTranscript } from 'youtube-transcript';
+import { Innertube } from 'youtubei.js';
 
 export interface TranscriptSegment {
   start: number; // 秒
@@ -10,12 +10,20 @@ export async function fetchYouTubeTranscript(
   videoId: string
 ): Promise<TranscriptSegment[]> {
   try {
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+    const youtube = await Innertube.create();
+    const info = await youtube.getInfo(videoId);
+    const transcriptData = await info.getTranscript();
 
-    return transcript.map((segment: any) => ({
-      start: segment.offset / 1000, // ミリ秒から秒に変換
-      duration: segment.duration / 1000,
-      text: segment.text,
+    const segments = transcriptData?.transcript?.content?.body?.initial_segments || [];
+
+    if (segments.length === 0) {
+      throw new Error('No transcript available for this video');
+    }
+
+    return segments.map((segment: any) => ({
+      start: segment.start_ms / 1000, // ミリ秒から秒に変換
+      duration: (segment.end_ms - segment.start_ms) / 1000,
+      text: segment.snippet?.text || '',
     }));
   } catch (error) {
     console.error(`Failed to fetch transcript for ${videoId}:`, error);
