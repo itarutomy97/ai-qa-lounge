@@ -42,10 +42,10 @@ export function HomePageClient({ episodes, userQuestionedEpisodeIds }: HomePageC
         {/* 説明セクション */}
         <section className="mb-8 text-center">
           <h2 className="text-3xl font-semibold text-[#1d1d1f] mb-3">
-            動画に質問してみよう
+            GAISの動画に質問してみよう
           </h2>
           <p className="text-lg text-[#86868b] mb-2">
-            YouTube動画の内容について、AIが詳しく回答します
+            GAISのセミナーの動画の内容について、AIが詳しく回答します
           </p>
           <p className="text-sm text-[#0066cc] font-medium">
             💡 質問を投稿すると、みんなの質問と回答も見れるようになります
