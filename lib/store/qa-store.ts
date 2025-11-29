@@ -6,6 +6,7 @@ type QAState = {
     questionId: string;
     episodeId: number;
     questionText: string;
+    model?: string;
     completion: string;
     isLoading: boolean;
   } | null;
@@ -15,7 +16,9 @@ type QAState = {
     questionId: string;
     episodeId: number;
     questionText: string;
+    model?: string;
   }) => void;
+  setQuestionId: (questionId: string) => void;
   updateCompletion: (completion: string) => void;
   setLoading: (isLoading: boolean) => void;
   clearQuestion: () => void;
@@ -32,6 +35,18 @@ export const useQAStore = create<QAState>((set) => ({
         isLoading: true,
       },
     }),
+
+  setQuestionId: (questionId) =>
+    set((state) =>
+      state.currentQuestion
+        ? {
+            currentQuestion: {
+              ...state.currentQuestion,
+              questionId,
+            },
+          }
+        : state
+    ),
 
   updateCompletion: (completion) =>
     set((state) =>

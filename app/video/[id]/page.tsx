@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { episodes, questions, answers, users } from '@/db/schema';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
@@ -8,12 +8,12 @@ import { StreamingAnswer } from '@/components/streaming-answer';
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ questionId?: string }>;
+  searchParams: Promise<{ questionId?: string; q?: string; model?: string }>;
 };
 
 export default async function VideoPage({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const { questionId } = await searchParams;
+  const { questionId, q, model } = await searchParams;
   const episodeId = parseInt(id, 10);
 
   if (isNaN(episodeId)) {
@@ -62,19 +62,14 @@ export default async function VideoPage({ params, searchParams }: PageProps) {
     .from(questions)
     .leftJoin(answers, eq(answers.questionId, questions.id))
     .leftJoin(users, eq(users.id, questions.userId))
-    .where(
-      and(
-        eq(questions.episodeId, episodeId),
-        questionId ? eq(questions.id, questionId) : undefined
-      )
-    )
+    .where(eq(questions.episodeId, episodeId))
     .orderBy(desc(questions.createdAt))
     .limit(10);
 
   // 自分の質問を除外
-  const otherQuestions = allQuestions.filter(
-    (q) => q.question.id !== questionId
-  );
+  const otherQuestions = questionId
+    ? allQuestions.filter((q) => q.question.id !== questionId)
+    : allQuestions;
 
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
@@ -153,6 +148,7 @@ export default async function VideoPage({ params, searchParams }: PageProps) {
                   {/* 回答 - ストリーミング対応 */}
                   <StreamingAnswer
                     questionId={questionId!}
+                    episodeId={episodeId}
                     initialAnswer={
                       myAnswer
                         ? {
@@ -177,7 +173,7 @@ export default async function VideoPage({ params, searchParams }: PageProps) {
               </section>
             )}
 
-            {!myQuestion && (
+            {!myQuestion && !q && (
               <div className="text-center py-12">
                 <p className="text-[#86868b] mb-4">質問を投稿して、みんなの回答を見てみましょう</p>
                 <Link
@@ -187,6 +183,43 @@ export default async function VideoPage({ params, searchParams }: PageProps) {
                   質問する
                 </Link>
               </div>
+            )}
+
+            {/* URLパラメータから質問が渡された場合 */}
+            {!myQuestion && q && (
+              <section className="mb-8">
+                <h2 className="text-xl font-semibold text-[#1d1d1f] mb-4">あなたの質問</h2>
+                <div className="bg-white rounded-2xl shadow-sm border border-[#d2d2d7] p-6">
+                  {/* 質問 */}
+                  <div className="mb-6">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-[#0066cc] flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm font-medium">Q</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[#1d1d1f] font-medium">{q}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 回答 - ストリーミング対応 */}
+                  <StreamingAnswer
+                    episodeId={episodeId}
+                    questionText={q}
+                    model={model}
+                  />
+                </div>
+
+                {/* トップに戻るボタン */}
+                <div className="mt-6 text-center">
+                  <Link
+                    href="/"
+                    className="inline-block px-6 py-3 bg-[#0066cc] hover:bg-[#0077ed] text-white font-medium rounded-xl transition-colors"
+                  >
+                    他の動画に質問する
+                  </Link>
+                </div>
+              </section>
             )}
           </div>
 

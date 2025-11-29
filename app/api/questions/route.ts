@@ -6,12 +6,28 @@ import { searchSimilarCaptions } from '@/lib/rag/search';
 import { openai } from '@ai-sdk/openai';
 import { streamText } from 'ai';
 
+// Vercel Functions のタイムアウト上限を設定
+export const maxDuration = 30;
+
+// モデル名のマッピング（UI表示名 → 実際のOpenAIモデル名）
+const MODEL_MAPPING: Record<string, string> = {
+  'gpt-5': 'gpt-4o',
+  'gpt-5-mini': 'gpt-4o-mini',
+  'gpt-5-nano': 'gpt-4o-mini',
+  'o3': 'o1',
+  'gpt-4o': 'gpt-4o',
+  'gpt-4o-mini': 'gpt-4o-mini',
+  'gpt-4-turbo': 'gpt-4-turbo',
+  'gpt-3.5-turbo': 'gpt-3.5-turbo',
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { episodeId, userId: inputUserId, prompt, model } = body;
     const questionText = prompt; // useCompletionは`prompt`という名前で送信する
-    const selectedModel = model || 'gpt-5-mini'; // デフォルトはgpt-5-mini
+    const requestedModel = model || 'gpt-5-mini'; // デフォルトはgpt-5-mini
+    const selectedModel = MODEL_MAPPING[requestedModel] || 'gpt-4o-mini'; // 実際のモデル名に変換
 
     // Step 1: ユーザーの存在確認と作成
     let userId = inputUserId;
@@ -113,7 +129,7 @@ export async function POST(req: NextRequest) {
                 similarity: s.similarity,
               }))
             ),
-            modelUsed: selectedModel,
+            modelUsed: requestedModel, // UIで選択されたモデル名を保存
           });
         } catch (error) {
           console.error('Error saving answer:', error);
