@@ -24,36 +24,34 @@ const MODEL_MAPPING: Record<string, string> = {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { episodeId, userId: inputUserId, prompt, model } = body;
+    const { episodeId, visitorId, prompt, model } = body;
     const questionText = prompt; // useCompletionは`prompt`という名前で送信する
     const requestedModel = model || 'gpt-5-mini'; // デフォルトはgpt-5-mini
     const selectedModel = MODEL_MAPPING[requestedModel] || 'gpt-4o-mini'; // 実際のモデル名に変換
 
-    // Step 1: ユーザーの存在確認と作成
-    let userId = inputUserId;
-
-    if (userId === 'anonymous') {
-      // 匿名ユーザーが存在するか確認
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.userId, 'anonymous'))
-        .limit(1);
-
-      if (!existingUser) {
-        // 匿名ユーザーを作成
-        const [newUser] = await db
-          .insert(users)
-          .values({
-            userId: 'anonymous',
-            email: 'anonymous@ai-qa-lounge.local',
-          })
-          .returning();
-        userId = newUser.id;
-      } else {
-        userId = existingUser.id;
-      }
+    // visitorIdが必須
+    if (!visitorId) {
+      return new Response(JSON.stringify({ error: 'visitorId is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
+
+    // ユーザーの存在確認
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, visitorId))
+      .limit(1);
+
+    if (!existingUser) {
+      return new Response(JSON.stringify({ error: 'User not found. Please register first.' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const userId = visitorId;
 
     // Step 2: 質問を保存
     const [question] = await db

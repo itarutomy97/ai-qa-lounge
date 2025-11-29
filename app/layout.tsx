@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
+import { UsernameDialog } from "@/components/username-dialog";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -8,8 +9,8 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Next.js Turso Starter",
-  description: "Get started with Next.js and Turso",
+  title: "GAIS QA Lounge",
+  description: "GAISのセミナー動画にAIで質問しよう",
 };
 
 export default function RootLayout({
@@ -18,8 +19,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} antialiased`}>{children}</body>
+    <html lang="ja">
+      <body className={`${geistSans.variable} antialiased`}>
+        {children}
+        <UsernameDialog />
+      </body>
     </html>
   );
 }

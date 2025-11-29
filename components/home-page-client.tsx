@@ -1,8 +1,10 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { QuestionForm } from '@/components/question-form';
+import { useUserStore } from '@/lib/store/user-store';
 
 type Episode = {
   id: number;
@@ -19,22 +21,55 @@ type Episode = {
 
 type HomePageClientProps = {
   episodes: Episode[];
-  userQuestionedEpisodeIds: number[];
 };
 
-export function HomePageClient({ episodes, userQuestionedEpisodeIds }: HomePageClientProps) {
+export function HomePageClient({ episodes }: HomePageClientProps) {
+  const { visitorId, username } = useUserStore();
+  const [userQuestionedEpisodeIds, setUserQuestionedEpisodeIds] = useState<number[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // ユーザーが質問したエピソードIDを取得
+  useEffect(() => {
+    const fetchUserQuestions = async () => {
+      if (!visitorId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/users/questions?visitorId=${visitorId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUserQuestionedEpisodeIds(data.episodeIds || []);
+        }
+      } catch (error) {
+        console.error('Error fetching user questions:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserQuestions();
+  }, [visitorId]);
   return (
     <div className="min-h-screen bg-[#f5f5f7]">
       {/* Header - Deference原則: シンプルで控えめ */}
       <header className="bg-white border-b border-[#d2d2d7]">
         <div className="max-w-5xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-semibold text-[#1d1d1f]">GAIS QA Lounge</h1>
-          <Link
-            href="/admin"
-            className="px-4 py-2 text-sm font-medium text-[#0066cc] hover:text-[#0077ed] transition-colors"
-          >
-            管理者モード
-          </Link>
+          <div className="flex items-center gap-4">
+            {username && (
+              <span className="text-sm text-[#86868b]">
+                こんにちは、<span className="font-medium text-[#1d1d1f]">{username}</span> さん
+              </span>
+            )}
+            <Link
+              href="/admin"
+              className="px-4 py-2 text-sm font-medium text-[#0066cc] hover:text-[#0077ed] transition-colors"
+            >
+              管理者モード
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -55,7 +90,10 @@ export function HomePageClient({ episodes, userQuestionedEpisodeIds }: HomePageC
         {/* 動画一覧 */}
         {episodes.length > 0 && (
           <section className="mb-8">
-            <h3 className="text-lg font-semibold text-[#1d1d1f] mb-4">利用可能な動画</h3>
+            <h3 className="text-lg font-semibold text-[#1d1d1f] mb-4">
+              利用可能な動画
+              {isLoading && <span className="ml-2 text-sm font-normal text-[#86868b]">読み込み中...</span>}
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {episodes.map((episode) => {
                 const hasQuestioned = userQuestionedEpisodeIds.includes(episode.id);

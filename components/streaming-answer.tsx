@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useUserStore } from '@/lib/store/user-store';
 
 type StreamingAnswerProps = {
   questionId?: string;
@@ -23,6 +24,7 @@ export function StreamingAnswer({
   initialAnswer
 }: StreamingAnswerProps) {
   const searchParams = useSearchParams();
+  const { visitorId } = useUserStore();
   const [streamedText, setStreamedText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,12 @@ export function StreamingAnswer({
   const startStreaming = useCallback(async (prompt: string) => {
     if (hasStartedStreaming.current) {
       console.log('[StreamingAnswer] Already started streaming, skipping...');
+      return;
+    }
+
+    // visitorIdがない場合は待つ
+    if (!visitorId) {
+      console.log('[StreamingAnswer] No visitorId, waiting...');
       return;
     }
 
@@ -51,7 +59,7 @@ export function StreamingAnswer({
         },
         body: JSON.stringify({
           episodeId,
-          userId: 'anonymous',
+          visitorId,
           prompt,
           model,
         }),
@@ -107,7 +115,7 @@ export function StreamingAnswer({
       setIsStreaming(false);
       hasStartedStreaming.current = false; // エラー時はリトライ可能にする
     }
-  }, [episodeId, model, searchParams]);
+  }, [episodeId, model, searchParams, visitorId]);
 
   // URLパラメータから質問が渡された場合、自動的にストリーミング開始
   useEffect(() => {
@@ -117,12 +125,18 @@ export function StreamingAnswer({
       return;
     }
 
+    // visitorIdがない場合は待つ
+    if (!visitorId) {
+      console.log('[StreamingAnswer] Waiting for visitorId...');
+      return;
+    }
+
     // 質問テキストがあり、まだストリーミングを開始していない場合
     if (questionText && !hasStartedStreaming.current) {
       console.log('[StreamingAnswer] Starting streaming automatically for:', questionText);
       startStreaming(questionText);
     }
-  }, [questionText, questionId, startStreaming]);
+  }, [questionText, questionId, startStreaming, visitorId]);
 
   // ストリーミング中または完了後の表示
   if (questionText && (isStreaming || streamedText)) {
