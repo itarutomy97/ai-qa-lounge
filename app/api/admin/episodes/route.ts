@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 2: YouTube APIから動画情報を取得
+    // 注: YouTubeJSのパーサー警告が出ることがありますが、データは正常に取得できます
     const youtube = await Innertube.create();
     const videoInfo = await youtube.getInfo(videoId);
 
