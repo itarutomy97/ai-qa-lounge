@@ -50,6 +50,11 @@ export function QuestionCard({
     if ((e.target as HTMLElement).closest('input[type="checkbox"]')) {
       return;
     }
+    // 統合モード中はカード全体クリックでチェックをトグル
+    if (showCheckbox && onToggleSelect) {
+      onToggleSelect(question.id);
+      return;
+    }
     setIsModalOpen(true);
   };
 

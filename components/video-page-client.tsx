@@ -153,12 +153,16 @@ export function VideoPageClient({
                       setSelectedQuestions(new Set());
                     }
                   }}
-                  className="w-full px-4 py-3 bg-white rounded-xl shadow-sm border border-[#d2d2d7] hover:shadow-md transition-shadow text-left flex items-center justify-between"
+                  className={`w-full px-4 py-3 rounded-xl shadow-sm border transition-all text-left flex items-center justify-between ${
+                    showMergeMode
+                      ? 'bg-white border-[#d2d2d7] hover:shadow-md'
+                      : 'bg-[#fffbeb] border-[#fbbf24] hover:bg-[#fef3c7] hover:shadow-md'
+                  }`}
                 >
-                  <span className="text-sm font-medium text-[#1d1d1f]">
+                  <span className={`text-sm font-medium ${showMergeMode ? 'text-[#1d1d1f]' : 'text-[#92400e]'}`}>
                     {showMergeMode ? '✕ 統合モードを終了' : '💡 複数の質問を統合して深い洞察を得る'}
                   </span>
-                  <span className="text-xs text-[#86868b]">
+                  <span className={`text-xs ${showMergeMode ? 'text-[#86868b]' : 'text-[#b45309]'}`}>
                     {showMergeMode ? `${selectedQuestions.size}個選択中` : `${otherQuestions.length}個の質問から選択`}
                   </span>
                 </button>
