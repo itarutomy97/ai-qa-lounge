@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store/user-store';
 
 type StreamingAnswerProps = {
@@ -24,11 +24,24 @@ export function StreamingAnswer({
   initialAnswer
 }: StreamingAnswerProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { visitorId } = useUserStore();
   const [streamedText, setStreamedText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasStartedStreaming = useRef(false);
+  const prevQuestionText = useRef<string | undefined>(undefined);
+
+  // questionTextが変わったら状態をリセット（バグ2対策）
+  useEffect(() => {
+    if (prevQuestionText.current !== undefined && prevQuestionText.current !== questionText) {
+      console.log('[StreamingAnswer] questionText changed, resetting state');
+      hasStartedStreaming.current = false;
+      setStreamedText('');
+      setError(null);
+    }
+    prevQuestionText.current = questionText;
+  }, [questionText]);
 
   // ストリーミング処理
   const startStreaming = useCallback(async (prompt: string) => {
@@ -109,13 +122,16 @@ export function StreamingAnswer({
       }
 
       setIsStreaming(false);
+
+      // ストリーミング完了後、サーバーコンポーネントを再フェッチして「みんなの質問」を更新（バグ1対策）
+      router.refresh();
     } catch (err) {
       console.error('[StreamingAnswer] Error:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
       setIsStreaming(false);
       hasStartedStreaming.current = false; // エラー時はリトライ可能にする
     }
-  }, [episodeId, model, searchParams, visitorId]);
+  }, [episodeId, model, searchParams, visitorId, router]);
 
   // URLパラメータから質問が渡された場合、自動的にストリーミング開始
   useEffect(() => {
