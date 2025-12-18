@@ -1,4 +1,5 @@
 import { YoutubeTranscript } from 'youtube-transcript';
+import { getSubtitles } from 'youtube-caption-extractor';
 import { Innertube } from 'youtubei.js';
 
 export interface TranscriptSegment {
@@ -10,73 +11,126 @@ export interface TranscriptSegment {
 export async function fetchYouTubeTranscript(
   videoId: string
 ): Promise<TranscriptSegment[]> {
-  // まずyoutube-transcriptを試す
+  // Method 1: youtube-transcript（日本語）
   try {
-    console.log(`[Transcript] Trying youtube-transcript for ${videoId}`);
+    console.log(`[Transcript] Method 1: youtube-transcript (ja) for ${videoId}`);
     const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
       lang: 'ja',
     });
 
     if (transcript && transcript.length > 0) {
-      console.log(`[Transcript] Successfully fetched ${transcript.length} segments with youtube-transcript`);
+      console.log(`[Transcript] Success with youtube-transcript (ja): ${transcript.length} segments`);
       return transcript.map((item) => ({
-        start: item.offset / 1000, // ミリ秒から秒に変換
+        start: item.offset / 1000,
         duration: item.duration / 1000,
         text: item.text,
       }));
     }
   } catch (error) {
-    console.log(`[Transcript] youtube-transcript failed, trying English...`, error);
-
-    // 日本語がなければ英語を試す
-    try {
-      const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
-        lang: 'en',
-      });
-
-      if (transcript && transcript.length > 0) {
-        console.log(`[Transcript] Successfully fetched ${transcript.length} segments (English)`);
-        return transcript.map((item) => ({
-          start: item.offset / 1000,
-          duration: item.duration / 1000,
-          text: item.text,
-        }));
-      }
-    } catch {
-      console.log(`[Transcript] youtube-transcript English also failed, trying youtubei.js...`);
-    }
+    console.log(`[Transcript] Method 1 failed:`, error instanceof Error ? error.message : error);
   }
 
-  // フォールバック: youtubei.jsを試す
+  // Method 2: youtube-transcript（英語）
   try {
-    console.log(`[Transcript] Trying youtubei.js for ${videoId}`);
+    console.log(`[Transcript] Method 2: youtube-transcript (en) for ${videoId}`);
+    const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
+      lang: 'en',
+    });
+
+    if (transcript && transcript.length > 0) {
+      console.log(`[Transcript] Success with youtube-transcript (en): ${transcript.length} segments`);
+      return transcript.map((item) => ({
+        start: item.offset / 1000,
+        duration: item.duration / 1000,
+        text: item.text,
+      }));
+    }
+  } catch (error) {
+    console.log(`[Transcript] Method 2 failed:`, error instanceof Error ? error.message : error);
+  }
+
+  // Method 3: youtube-transcript（言語指定なし）
+  try {
+    console.log(`[Transcript] Method 3: youtube-transcript (auto) for ${videoId}`);
+    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+
+    if (transcript && transcript.length > 0) {
+      console.log(`[Transcript] Success with youtube-transcript (auto): ${transcript.length} segments`);
+      return transcript.map((item) => ({
+        start: item.offset / 1000,
+        duration: item.duration / 1000,
+        text: item.text,
+      }));
+    }
+  } catch (error) {
+    console.log(`[Transcript] Method 3 failed:`, error instanceof Error ? error.message : error);
+  }
+
+  // Method 4: youtube-caption-extractor（日本語）
+  try {
+    console.log(`[Transcript] Method 4: youtube-caption-extractor (ja) for ${videoId}`);
+    const subtitles = await getSubtitles({ videoID: videoId, lang: 'ja' });
+
+    if (subtitles && subtitles.length > 0) {
+      console.log(`[Transcript] Success with youtube-caption-extractor (ja): ${subtitles.length} segments`);
+      return subtitles.map((item) => ({
+        start: parseFloat(item.start),
+        duration: parseFloat(item.dur),
+        text: item.text,
+      }));
+    }
+  } catch (error) {
+    console.log(`[Transcript] Method 4 failed:`, error instanceof Error ? error.message : error);
+  }
+
+  // Method 5: youtube-caption-extractor（英語）
+  try {
+    console.log(`[Transcript] Method 5: youtube-caption-extractor (en) for ${videoId}`);
+    const subtitles = await getSubtitles({ videoID: videoId, lang: 'en' });
+
+    if (subtitles && subtitles.length > 0) {
+      console.log(`[Transcript] Success with youtube-caption-extractor (en): ${subtitles.length} segments`);
+      return subtitles.map((item) => ({
+        start: parseFloat(item.start),
+        duration: parseFloat(item.dur),
+        text: item.text,
+      }));
+    }
+  } catch (error) {
+    console.log(`[Transcript] Method 5 failed:`, error instanceof Error ? error.message : error);
+  }
+
+  // Method 6: youtubei.js（最後の手段）
+  try {
+    console.log(`[Transcript] Method 6: youtubei.js for ${videoId}`);
     const youtube = await Innertube.create();
     const info = await youtube.getInfo(videoId);
     const transcriptData = await info.getTranscript();
 
     const segments = transcriptData?.transcript?.content?.body?.initial_segments || [];
 
-    if (segments.length === 0) {
-      throw new Error('No transcript available for this video');
+    if (segments.length > 0) {
+      console.log(`[Transcript] Success with youtubei.js: ${segments.length} segments`);
+      return segments.map((segment) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const seg = segment as any;
+        const startMs = typeof seg.start_ms === 'string' ? parseFloat(seg.start_ms) : seg.start_ms;
+        const endMs = typeof seg.end_ms === 'string' ? parseFloat(seg.end_ms) : seg.end_ms;
+
+        return {
+          start: startMs / 1000,
+          duration: (endMs - startMs) / 1000,
+          text: seg.snippet?.text || '',
+        };
+      });
     }
-
-    console.log(`[Transcript] Successfully fetched ${segments.length} segments with youtubei.js`);
-    return segments.map((segment) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const seg = segment as any;
-      const startMs = typeof seg.start_ms === 'string' ? parseFloat(seg.start_ms) : seg.start_ms;
-      const endMs = typeof seg.end_ms === 'string' ? parseFloat(seg.end_ms) : seg.end_ms;
-
-      return {
-        start: startMs / 1000,
-        duration: (endMs - startMs) / 1000,
-        text: seg.snippet?.text || '',
-      };
-    });
   } catch (error) {
-    console.error(`[Transcript] All methods failed for ${videoId}:`, error);
-    throw new Error(`Transcript fetch failed: No transcript available for this video`);
+    console.log(`[Transcript] Method 6 failed:`, error instanceof Error ? error.message : error);
   }
+
+  // すべて失敗
+  console.error(`[Transcript] All methods failed for ${videoId}`);
+  throw new Error(`Transcript fetch failed: No transcript available for this video`);
 }
 
 export function formatTimestamp(seconds: number): string {

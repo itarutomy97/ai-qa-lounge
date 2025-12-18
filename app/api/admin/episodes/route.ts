@@ -27,7 +27,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Step 2: YouTube APIから動画情報を取得
+    // Step 2: YouTube字幕取得（先に実行して、失敗したらエピソード登録しない）
+    const transcript = await fetchYouTubeTranscript(videoId);
+
+    if (!transcript || transcript.length === 0) {
+      return NextResponse.json(
+        { error: 'Failed to fetch transcript. Video may not have captions available.' },
+        { status: 400 }
+      );
+    }
+
+    // Step 3: YouTube APIから動画情報を取得
     // 注: YouTubeJSのパーサー警告が出ることがありますが、データは正常に取得できます
     const youtube = await Innertube.create();
     const videoInfo = await youtube.getInfo(videoId);
@@ -35,7 +45,7 @@ export async function POST(req: NextRequest) {
     const title = videoInfo.basic_info.title || 'Untitled Video';
     const description = videoInfo.basic_info.short_description || '';
 
-    // Step 3: エピソード登録
+    // Step 4: エピソード登録（字幕取得成功後のみ）
     const [episode] = await db
       .insert(episodes)
       .values({
@@ -49,16 +59,6 @@ export async function POST(req: NextRequest) {
     if (!episode) {
       return NextResponse.json(
         { error: 'Failed to create episode' },
-        { status: 400 }
-      );
-    }
-
-    // Step 4: YouTube字幕取得
-    const transcript = await fetchYouTubeTranscript(videoId);
-
-    if (!transcript || transcript.length === 0) {
-      return NextResponse.json(
-        { error: 'Failed to fetch transcript. Video may not have captions available.' },
         { status: 400 }
       );
     }
