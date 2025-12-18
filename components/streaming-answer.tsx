@@ -25,7 +25,7 @@ export function StreamingAnswer({
 }: StreamingAnswerProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { visitorId } = useUserStore();
+  const { visitorId, clearUser } = useUserStore();
   const [streamedText, setStreamedText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,11 +127,21 @@ export function StreamingAnswer({
       router.refresh();
     } catch (err) {
       console.error('[StreamingAnswer] Error:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+
+      // ユーザー未登録エラーの場合、ユーザー情報をクリアしてダイアログを再表示
+      if (errorMessage.includes('User not found')) {
+        console.log('[StreamingAnswer] User not found, clearing user data...');
+        clearUser();
+        setError('ユーザー登録が必要です。ニックネームを入力してください。');
+      } else {
+        setError(errorMessage);
+      }
+
       setIsStreaming(false);
       hasStartedStreaming.current = false; // エラー時はリトライ可能にする
     }
-  }, [episodeId, model, searchParams, visitorId, router]);
+  }, [episodeId, model, searchParams, visitorId, router, clearUser]);
 
   // URLパラメータから質問が渡された場合、自動的にストリーミング開始
   useEffect(() => {
