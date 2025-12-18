@@ -1,5 +1,7 @@
 # GAIS QA Lounge
 
+https://youtu.be/iJlslr9VsxY
+
 **動画を見るだけじゃ、もったいない。**
 
 GAISメルマガ購読者向けの動画コンテンツ質問コミュニティプラットフォーム
