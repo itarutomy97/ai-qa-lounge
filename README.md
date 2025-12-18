@@ -1,6 +1,6 @@
 # GAIS QA Lounge
 
-https://youtu.be/iJlslr9VsxY
+[![GAIS QA Lounge デモ動画](https://img.youtube.com/vi/iJlslr9VsxY/hqdefault.jpg)](https://youtu.be/iJlslr9VsxY)
 
 **動画を見るだけじゃ、もったいない。**
 
