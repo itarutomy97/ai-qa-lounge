@@ -1,3 +1,4 @@
+import { YoutubeTranscript } from 'youtube-transcript';
 import { Innertube } from 'youtubei.js';
 
 export interface TranscriptSegment {
@@ -9,7 +10,46 @@ export interface TranscriptSegment {
 export async function fetchYouTubeTranscript(
   videoId: string
 ): Promise<TranscriptSegment[]> {
+  // まずyoutube-transcriptを試す
   try {
+    console.log(`[Transcript] Trying youtube-transcript for ${videoId}`);
+    const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
+      lang: 'ja',
+    });
+
+    if (transcript && transcript.length > 0) {
+      console.log(`[Transcript] Successfully fetched ${transcript.length} segments with youtube-transcript`);
+      return transcript.map((item) => ({
+        start: item.offset / 1000, // ミリ秒から秒に変換
+        duration: item.duration / 1000,
+        text: item.text,
+      }));
+    }
+  } catch (error) {
+    console.log(`[Transcript] youtube-transcript failed, trying English...`, error);
+
+    // 日本語がなければ英語を試す
+    try {
+      const transcript = await YoutubeTranscript.fetchTranscript(videoId, {
+        lang: 'en',
+      });
+
+      if (transcript && transcript.length > 0) {
+        console.log(`[Transcript] Successfully fetched ${transcript.length} segments (English)`);
+        return transcript.map((item) => ({
+          start: item.offset / 1000,
+          duration: item.duration / 1000,
+          text: item.text,
+        }));
+      }
+    } catch {
+      console.log(`[Transcript] youtube-transcript English also failed, trying youtubei.js...`);
+    }
+  }
+
+  // フォールバック: youtubei.jsを試す
+  try {
+    console.log(`[Transcript] Trying youtubei.js for ${videoId}`);
     const youtube = await Innertube.create();
     const info = await youtube.getInfo(videoId);
     const transcriptData = await info.getTranscript();
@@ -20,6 +60,7 @@ export async function fetchYouTubeTranscript(
       throw new Error('No transcript available for this video');
     }
 
+    console.log(`[Transcript] Successfully fetched ${segments.length} segments with youtubei.js`);
     return segments.map((segment) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const seg = segment as any;
@@ -27,14 +68,14 @@ export async function fetchYouTubeTranscript(
       const endMs = typeof seg.end_ms === 'string' ? parseFloat(seg.end_ms) : seg.end_ms;
 
       return {
-        start: startMs / 1000, // ミリ秒から秒に変換
+        start: startMs / 1000,
         duration: (endMs - startMs) / 1000,
         text: seg.snippet?.text || '',
       };
     });
   } catch (error) {
-    console.error(`Failed to fetch transcript for ${videoId}:`, error);
-    throw new Error(`Transcript fetch failed: ${error}`);
+    console.error(`[Transcript] All methods failed for ${videoId}:`, error);
+    throw new Error(`Transcript fetch failed: No transcript available for this video`);
   }
 }
 
